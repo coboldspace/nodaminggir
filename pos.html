@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Noda Mingir — POS System</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .pos-layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      width: 260px;
+      background: var(--dark);
+      color: white;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      height: 100vh;
+      overflow-y: auto;
+      z-index: 100;
+    }
+
+    .sidebar-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 1.25rem;
+      font-weight: 800;
+      margin-bottom: 2rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .sidebar-brand svg {
+      width: 32px;
+      height: 32px;
+    }
+
+    .nav-menu {
+      list-style: none;
+      flex: 1;
+    }
+
+    .nav-menu li {
+      margin-bottom: 0.5rem;
+    }
+
+    .nav-menu a {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem;
+      color: rgba(255,255,255,0.7);
+      text-decoration: none;
+      border-radius: var(--radius-sm);
+      transition: var(--transition);
+      font-size: 0.9rem;
+      cursor: pointer;
+      border: none;
+      background: none;
+      width: 100%;
+      font-family: inherit;
+    }
+
+    .nav-menu a:hover,
+    .nav-menu a.active {
+      background: var(--primary);
+      color: white;
+    }
+
+    .nav-menu svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .sidebar-footer {
+      padding-top: 1.5rem;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.5);
+      text-align: center;
+    }
+
+    .main-content {
+      flex: 1;
+      margin-left: 260px;
+      padding: 2rem;
+      background: var(--light);
+      min-height: 100vh;
+    }
+
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+    }
+
+    .page-header h1 {
+      font-size: 1.75rem;
+      color: var(--dark);
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    .sync-status {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      color: var(--gray-dark);
+    }
+
+    .sync-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      animation: pulse 2s infinite;
+    }
+
+    .sync-dot.offline {
+      background: var(--danger);
+      animation: none;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Stats Cards */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-card {
+      background: white;
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .stat-icon {
+      width: 50px;
+      height: 50px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .stat-icon.blue { background: #DBEAFE; color: #1E40AF; }
+    .stat-icon.green { background: #D1FAE5; color: #065F46; }
+    .stat-icon.orange { background: #FEF3C7; color: #92400E; }
+    .stat-icon.purple { background: #E0E7FF; color: #3730A3; }
+
+    .stat-icon svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .stat-info h3 {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: var(--dark);
+    }
+
+    .stat-info p {
+      font-size: 0.85rem;
+      color: var(--gray-dark);
+    }
+
+    /* Content Sections */
+    .content-section {
+      display: none;
+    }
+
+    .content-section.active {
+      display: block;
+    }
+
+    /* Form Styles */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.5rem;
+    }
+
+    .form-grid .full-width {
+      grid-column: 1 / -1;
+    }
+
+    .order-form {
+      background: white;
+      border-radius: var(--radius);
+      padding: 2rem;
+      box-shadow: var(--shadow);
+    }
+
+    .form-section-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--dark);
+      margin-bottom: 1.5rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 2px solid var(--gray);
+    }
+
+    .service-selector {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .service-option {
+      border: 2px solid var(--gray);
+      border-radius: var(--radius-sm);
+      padding: 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: var(--transition);
+      background: white;
+    }
+
+    .service-option:hover {
+      border-color: var(--primary);
+    }
+
+    .service-option.selected {
+      border-color: var(--primary);
+      background: rgba(91, 124, 153, 0.05);
+    }
+
+    .service-option h4 {
+      font-size: 0.9rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .service-option .price {
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .total-box {
+      background: var(--light);
+      border-radius: var(--radius-sm);
+      padding: 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 1.5rem;
+    }
+
+    .total-box h3 {
+      font-size: 1.5rem;
+      color: var(--primary);
+    }
+
+    /* Orders Table */
+    .filters-bar {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .filter-btn {
+      padding: 0.5rem 1rem;
+      border: 2px solid var(--gray);
+      background: white;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: var(--transition);
+      font-family: inherit;
+    }
+
+    .filter-btn:hover,
+    .filter-btn.active {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: white;
+    }
+
+    .search-box {
+      position: relative;
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: 0.75rem 1rem 0.75rem 2.5rem;
+      border: 2px solid var(--gray);
+      border-radius: var(--radius-sm);
+      font-size: 0.9rem;
+    }
+
+    .search-box svg {
+      position: absolute;
+      left: 0.75rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--gray-dark);
+    }
+
+    .status-select {
+      padding: 0.35rem 0.75rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--gray);
+      font-size: 0.85rem;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .action-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0.35rem;
+      border-radius: var(--radius-sm);
+      transition: var(--transition);
+      color: var(--gray-dark);
+    }
+
+    .action-btn:hover {
+      background: var(--light);
+      color: var(--primary);
+    }
+
+    .action-btn.delete:hover {
+      color: var(--danger);
+    }
+
+    /* Services Management */
+    .services-list {
+      background: white;
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      box-shadow: var(--shadow);
+    }
+
+    .service-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem;
+      border-bottom: 1px solid var(--gray);
+    }
+
+    .service-row:last-child {
+      border-bottom: none;
+    }
+
+    .service-info h4 {
+      color: var(--dark);
+      margin-bottom: 0.25rem;
+    }
+
+    .service-info p {
+      font-size: 0.85rem;
+      color: var(--gray-dark);
+    }
+
+    .service-price-tag {
+      font-weight: 700;
+      color: var(--primary);
+      font-size: 1.1rem;
+    }
+
+    .service-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    /* Login Screen */
+    .login-screen {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(135deg, var(--dark) 0%, var(--primary-dark) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 5000;
+    }
+
+    .login-box {
+      background: white;
+      border-radius: var(--radius);
+      padding: 3rem;
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .login-box h2 {
+      margin-bottom: 0.5rem;
+      color: var(--dark);
+    }
+
+    .login-box p {
+      color: var(--gray-dark);
+      margin-bottom: 2rem;
+      font-size: 0.9rem;
+    }
+
+    .login-logo {
+      width: 60px;
+      height: 60px;
+      margin: 0 auto 1.5rem;
+    }
+
+    /* Mobile Sidebar */
+    .sidebar-toggle {
+      display: none;
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      z-index: 99;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: white;
+      border: none;
+      cursor: pointer;
+      box-shadow: var(--shadow-lg);
+    }
+
+    @media (max-width: 768px) {
+      .sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+      }
+
+      .sidebar.open {
+        transform: translateX(0);
+      }
+
+      .main-content {
+        margin-left: 0;
+      }
+
+      .sidebar-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+<base target="_blank">
+</head>
+<body>
+  <!-- Login Screen -->
+  <div class="login-screen" id="loginScreen">
+    <div class="login-box">
+      <svg class="login-logo" viewBox="0 0 36 36" fill="none">
+        <rect width="36" height="36" rx="8" fill="#5B7C99"/>
+        <path d="M10 24C10 24 12 20 18 20C24 20 26 24 26 24" stroke="white" stroke-width="2" stroke-linecap="round"/>
+        <path d="M8 26C8 26 11 22 18 22C25 22 28 26 28 26" stroke="white" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+      </svg>
+      <h2>Noda Mingir POS</h2>
+      <p>Masukkan password untuk mengakses sistem</p>
+      <div class="form-group" style="text-align:left;">
+        <label class="form-label">Password</label>
+        <input type="password" class="form-input" id="loginPassword" placeholder="••••••">
+      </div>
+      <button class="btn btn-primary" style="width:100%;margin-top:1rem;justify-content:center;" onclick="doLogin()">Masuk</button>
+      <p style="margin-top:1rem;font-size:0.8rem;">Default: <strong>admin123</strong></p>
+      <a href="index.html" style="display:block;margin-top:1rem;color:var(--primary);font-size:0.85rem;">← Kembali ke Landing Page</a>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay hidden" id="loadingOverlay">
+    <div class="spinner"></div>
+    <p style="color:var(--gray-dark);">Menyinkronkan data...</p>
+  </div>
+
+  <!-- POS Layout -->
+  <div class="pos-layout" id="posLayout" style="display:none;">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <svg viewBox="0 0 36 36" fill="none">
+          <rect width="36" height="36" rx="8" fill="white" fill-opacity="0.1"/>
+          <path d="M10 24C10 24 12 20 18 20C24 20 26 24 26 24" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          <path d="M8 26C8 26 11 22 18 22C25 22 28 26 28 26" stroke="white" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+        </svg>
+        Noda Mingir
+      </div>
+      <ul class="nav-menu">
+        <li>
+          <a href="#" class="active" onclick="showSection('dashboard', this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            Dashboard
+          </a>
+        </li>
+        <li>
+          <a href="#" onclick="showSection('new-order', this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Order Baru
+          </a>
+        </li>
+        <li>
+          <a href="#" onclick="showSection('orders', this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Daftar Order
+          </a>
+        </li>
+        <li>
+          <a href="#" onclick="showSection('services', this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            Layanan
+          </a>
+        </li>
+        <li>
+          <a href="#" onclick="showSection('settings', this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            Pengaturan
+          </a>
+        </li>
+      </ul>
+      <ul class="nav-menu" style="margin-top:auto;">
+      <li>
+        <a href="#" onclick="doLogout(); return false;" style="color:rgba(255,255,255,0.5);">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Logout
+        </a>
+      </li>
+    </ul>
+    <div class="sidebar-footer">
+        <p>Noda Mingir POS v1.0</p>
+        <p>Connected to Google Sheets</p>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Dashboard -->
+      <div class="content-section active" id="dashboard">
+        <div class="page-header">
+          <h1>Dashboard</h1>
+          <div class="header-actions">
+            <div class="sync-status">
+              <span class="sync-dot" id="syncDot"></span>
+              <span id="syncText">Online</span>
+            </div>
+            <button class="btn btn-sm btn-outline" onclick="refreshData()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon blue">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+            </div>
+            <div class="stat-info">
+              <h3 id="statTotalOrders">0</h3>
+              <p>Total Order Hari Ini</p>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon green">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
+            <div class="stat-info">
+              <h3 id="statRevenue">Rp 0</h3>
+              <p>Pendapatan Hari Ini</p>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon orange">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="stat-info">
+              <h3 id="statPending">0</h3>
+              <p>Menunggu Proses</p>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon purple">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <div class="stat-info">
+              <h3 id="statCompleted">0</h3>
+              <p>Selesai Hari Ini</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-bottom:1.5rem;color:var(--dark);">Order Terbaru</h3>
+          <div class="table-container">
+            <table class="data-table" id="recentOrdersTable">
+              <thead>
+                <tr><th>ID</th><th>Pelanggan</th><th>Layanan</th><th>Total</th><th>Status</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- New Order -->
+      <div class="content-section" id="new-order">
+        <div class="page-header">
+          <h1>Order Baru</h1>
+        </div>
+        <div class="order-form">
+          <h3 class="form-section-title">Data Pelanggan</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Nama Pelanggan *</label>
+              <input type="text" class="form-input" id="customerName" placeholder="Nama lengkap">
+            </div>
+            <div class="form-group">
+              <label class="form-label">No. WhatsApp *</label>
+              <input type="text" class="form-input" id="customerPhone" placeholder="0812xxxxxxx">
+            </div>
+          </div>
+
+          <h3 class="form-section-title">Detail Sepatu</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Merk/Model Sepatu</label>
+              <input type="text" class="form-input" id="shoeBrand" placeholder="Contoh: Nike Air Force 1">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Ukuran</label>
+              <input type="text" class="form-input" id="shoeSize" placeholder="Contoh: 42">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Warna</label>
+              <input type="text" class="form-input" id="shoeColor" placeholder="Contoh: Putih">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Kondisi Awal</label>
+              <select class="form-select" id="shoeCondition">
+                <option value="Ringan">Ringan</option>
+                <option value="Sedang">Sedang</option>
+                <option value="Berat">Berat</option>
+              </select>
+            </div>
+          </div>
+
+          <h3 class="form-section-title">Pilih Layanan</h3>
+          <div class="service-selector" id="serviceSelector"></div>
+
+          <div class="form-group full-width">
+            <label class="form-label">Catatan Tambahan</label>
+            <textarea class="form-textarea" id="orderNotes" placeholder="Permintaan khusus, dll..."></textarea>
+          </div>
+
+          <div class="total-box">
+            <div>
+              <p class="text-muted">Total Pembayaran</p>
+              <h3 id="orderTotal">Rp 0</h3>
+            </div>
+            <button class="btn btn-primary" onclick="submitOrder()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+              Simpan Order
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Orders List -->
+      <div class="content-section" id="orders">
+        <div class="page-header">
+          <h1>Daftar Order</h1>
+          <button class="btn btn-primary" onclick="showSection('new-order', null); document.querySelector('.nav-menu a:nth-child(2)').classList.add('active');">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Order Baru
+          </button>
+        </div>
+
+        <div class="filters-bar">
+          <div class="search-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="orderSearch" placeholder="Cari nama pelanggan..." onkeyup="filterOrders()">
+          </div>
+          <button class="filter-btn active" onclick="filterByStatus('all', this)">Semua</button>
+          <button class="filter-btn" onclick="filterByStatus('Pending', this)">Pending</button>
+          <button class="filter-btn" onclick="filterByStatus('Processing', this)">Proses</button>
+          <button class="filter-btn" onclick="filterByStatus('Done', this)">Selesai</button>
+          <button class="filter-btn" onclick="filterByStatus('Completed', this)">Diambil</button>
+        </div>
+
+        <div class="table-container">
+          <table class="data-table" id="ordersTable">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Tanggal</th>
+                <th>Pelanggan</th>
+                <th>Sepatu</th>
+                <th>Layanan</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Services -->
+      <div class="content-section" id="services">
+        <div class="page-header">
+          <h1>Kelola Layanan</h1>
+          <button class="btn btn-primary" onclick="openServiceModal()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Tambah Layanan
+          </button>
+        </div>
+        <div class="services-list" id="servicesList"></div>
+      </div>
+
+      <!-- Settings -->
+      <div class="content-section" id="settings">
+        <div class="page-header">
+          <h1>Pengaturan</h1>
+        </div>
+        <div class="card" style="max-width:600px;">
+          <h3 class="form-section-title">Koneksi Google Sheets</h3>
+          <div class="form-group">
+            <label class="form-label">Google Apps Script URL</label>
+            <input type="text" class="form-input" id="gasUrl" placeholder="https://script.google.com/macros/s/.../exec">
+            <p style="font-size:0.8rem;color:var(--gray-dark);margin-top:0.5rem;">Masukkan URL Web App dari Google Apps Script Anda</p>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Password POS</label>
+            <input type="password" class="form-input" id="posPassword" placeholder="Ganti password...">
+          </div>
+          <button class="btn btn-primary" onclick="saveSettings()">Simpan Pengaturan</button>
+
+          <h3 class="form-section-title" style="margin-top:2rem;">Data Lokal</h3>
+          <p style="color:var(--gray-dark);font-size:0.9rem;margin-bottom:1rem;">Jika data tidak sinkron, Anda bisa mengelola data secara lokal. Data akan disimpan di browser ini.</p>
+          <button class="btn btn-outline" onclick="exportData()">Export Data (CSV)</button>
+          <button class="btn btn-outline" style="margin-left:0.5rem;" onclick="clearLocalData()">Hapus Data Lokal</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Service Modal -->
+  <div class="modal-overlay" id="serviceModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="serviceModalTitle">Tambah Layanan</h3>
+        <button class="modal-close" onclick="closeServiceModal()">&times;</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nama Layanan</label>
+        <input type="text" class="form-input" id="serviceName" placeholder="Contoh: Deep Clean">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Harga (Rp)</label>
+        <input type="number" class="form-input" id="servicePrice" placeholder="50000">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Deskripsi</label>
+        <textarea class="form-textarea" id="serviceDesc" placeholder="Deskripsi layanan..."></textarea>
+      </div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="saveService()">Simpan</button>
+    </div>
+  </div>
+
+  <!-- Mobile Toggle -->
+  <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+
+  <script src="js/pos.js"></script>
+</body>
+</html>
