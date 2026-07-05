@@ -245,20 +245,32 @@ function renderServiceSelector() {
   const container = document.getElementById('serviceSelector');
   if (!container) return;
 
-  container.innerHTML = services.map(s => `
-    <div class="service-option" data-id="${s.id}" onclick="toggleService(${s.id}, this)">
+  container.innerHTML = services.map((s, index) => `
+    <div class="service-option" data-idx="${index}" data-sid="${s.id}">
       <h4>${s.name}</h4>
       <div class="price">${formatRupiah(s.price)}</div>
     </div>
   `).join('');
+
+  // Attach click handlers after render
+  container.querySelectorAll('.service-option').forEach(el => {
+    el.addEventListener('click', function() {
+      const idx = parseInt(this.dataset.idx);
+      const svc = services[idx];
+      if (!svc) return;
+      toggleService(svc.id, this);
+    });
+  });
 }
 
 function toggleService(id, el) {
-  if (selectedServices.has(id)) {
-    selectedServices.delete(id);
+  // Normalize id to string for Set comparison
+  const sid = String(id);
+  if (selectedServices.has(sid)) {
+    selectedServices.delete(sid);
     el.classList.remove('selected');
   } else {
-    selectedServices.add(id);
+    selectedServices.add(sid);
     el.classList.add('selected');
   }
   calculateTotal();
@@ -287,8 +299,8 @@ async function submitOrder() {
     return;
   }
 
-  const selectedServiceList = Array.from(selectedServices).map(id => services.find(s => s.id === id));
-  const total = selectedServiceList.reduce((sum, s) => sum + s.price, 0);
+  const selectedServiceList = Array.from(selectedServices).map(sid => services.find(s => String(s.id) === String(sid)));
+  const total = selectedServiceList.reduce((sum, s) => sum + (s ? s.price : 0), 0);
 
   const newOrder = {
     id: generateId(),
@@ -300,7 +312,7 @@ async function submitOrder() {
     shoeSize: document.getElementById('shoeSize').value.trim(),
     shoeColor: document.getElementById('shoeColor').value.trim(),
     shoeCondition: document.getElementById('shoeCondition').value,
-    serviceIds: Array.from(selectedServices),
+    serviceIds: Array.from(selectedServices).map(sid => String(sid)),
     serviceNames: selectedServiceList.map(s => s.name).join(', '),
     total,
     status: 'Pending',
