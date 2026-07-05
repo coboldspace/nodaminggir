@@ -1,13 +1,12 @@
 // ============================================
-// NODA MINGIR POS SYSTEM v2
-// GET-based API for Google Apps Script (CORS-fix)
+// NODA MINGIR POS SYSTEM v3
+// GAS-first data loading + GET-based API + ID normalization
 // ============================================
 
 const APP_NAME = 'NodaMingirPOS';
 const DEFAULT_PASSWORD = 'admin123';
 
 // State
-let currentUser = null;
 let orders = [];
 let services = [];
 let settings = {};
@@ -56,10 +55,17 @@ function doLogout() {
   location.reload();
 }
 
-function showPOS() {
+async function showPOS() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('posLayout').style.display = 'flex';
-  refreshData();
+
+  // ALWAYS fetch fresh data from GAS first
+  await loadDataFromGAS();
+
+  // Then render everything
+  updateDashboard();
+  renderServiceSelector();
+  renderOrdersTable();
 }
 
 // ============================================
@@ -132,6 +138,45 @@ function getDefaultServices() {
 // ============================================
 // GOOGLE APPS SCRIPT API (GET-based)
 // ============================================
+async function loadDataFromGAS() {
+  if (!settings.gasUrl) {
+    console.log('No GAS URL configured, using local data');
+    updateSyncStatus(false);
+    return false;
+  }
+
+  showLoading(true);
+  try {
+    const result = await callGAS('getData');
+    if (result.success) {
+      // Overwrite local data with GAS data
+      if (result.orders && Array.isArray(result.orders)) {
+        orders = result.orders;
+      }
+      if (result.services && Array.isArray(result.services) && result.services.length > 0) {
+        services = result.services;
+      }
+      // Save to localStorage for offline fallback
+      saveLocalData();
+      updateSyncStatus(true);
+      console.log('Data loaded from GAS:', orders.length, 'orders,', services.length, 'services');
+      return true;
+    } else {
+      console.error('GAS returned error:', result.error);
+      updateSyncStatus(false);
+      showToast('Gagal load data dari Sheets: ' + (result.error || 'Unknown'), 'warning');
+      return false;
+    }
+  } catch (err) {
+    console.error('GAS fetch error:', err);
+    updateSyncStatus(false);
+    showToast('Offline mode - menggunakan data lokal', 'warning');
+    return false;
+  } finally {
+    showLoading(false);
+  }
+}
+
 async function callGAS(action, data = {}) {
   if (!settings.gasUrl) {
     return { success: false, error: 'GAS URL not configured' };
@@ -158,15 +203,10 @@ async function callGAS(action, data = {}) {
   const url = `${settings.gasUrl}?${params.toString()}`;
 
   try {
-    const response = await fetch(url, {
-      method: 'GET',
-      // No body needed for GET
-    });
-
+    const response = await fetch(url, { method: 'GET' });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
-
     const result = await response.json();
     return result;
   } catch (err) {
@@ -176,27 +216,10 @@ async function callGAS(action, data = {}) {
 }
 
 async function refreshData() {
-  showLoading(true);
-
-  if (settings.gasUrl) {
-    const result = await callGAS('getData');
-    if (result.success) {
-      if (result.orders) orders = result.orders;
-      if (result.services) services = result.services;
-      saveLocalData();
-      updateSyncStatus(true);
-    } else {
-      updateSyncStatus(false);
-      showToast('Gagal sinkron dengan Google Sheets. Menggunakan data lokal.', 'warning');
-    }
-  } else {
-    updateSyncStatus(false);
-  }
-
+  await loadDataFromGAS();
   updateDashboard();
   renderServiceSelector();
   renderOrdersTable();
-  showLoading(false);
 }
 
 function updateSyncStatus(online) {
@@ -225,17 +248,19 @@ function updateDashboard() {
   document.getElementById('statPending').textContent = pending;
   document.getElementById('statCompleted').textContent = completed;
 
-  const recent = [...orders].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);
+  const recent = [...orders].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 5);
   const tbody = document.querySelector('#recentOrdersTable tbody');
-  tbody.innerHTML = recent.map(o => `
-    <tr>
-      <td>#${o.id}</td>
-      <td>${o.customerName}</td>
-      <td>${o.serviceNames || '-'}</td>
-      <td>${formatRupiah(o.total)}</td>
-      <td>${statusBadge(o.status)}</td>
-    </tr>
-  `).join('');
+  if (tbody) {
+    tbody.innerHTML = recent.map(o => `
+      <tr>
+        <td>#${o.id}</td>
+        <td>${o.customerName || '-'}</td>
+        <td>${o.serviceNames || '-'}</td>
+        <td>${formatRupiah(o.total)}</td>
+        <td>${statusBadge(o.status)}</td>
+      </tr>
+    `).join('');
+  }
 }
 
 // ============================================
@@ -246,7 +271,7 @@ function renderServiceSelector() {
   if (!container) return;
 
   container.innerHTML = services.map((s, index) => `
-    <div class="service-option" data-idx="${index}" data-sid="${s.id}">
+    <div class="service-option" data-idx="${index}">
       <h4>${s.name}</h4>
       <div class="price">${formatRupiah(s.price)}</div>
     </div>
@@ -264,7 +289,6 @@ function renderServiceSelector() {
 }
 
 function toggleService(id, el) {
-  // Normalize id to string for Set comparison
   const sid = String(id);
   if (selectedServices.has(sid)) {
     selectedServices.delete(sid);
@@ -278,8 +302,8 @@ function toggleService(id, el) {
 
 function calculateTotal() {
   let total = 0;
-  selectedServices.forEach(id => {
-    const svc = services.find(s => s.id === id);
+  selectedServices.forEach(sid => {
+    const svc = services.find(s => String(s.id) === sid);
     if (svc) total += svc.price;
   });
   document.getElementById('orderTotal').textContent = formatRupiah(total);
@@ -299,8 +323,8 @@ async function submitOrder() {
     return;
   }
 
-  const selectedServiceList = Array.from(selectedServices).map(sid => services.find(s => String(s.id) === String(sid)));
-  const total = selectedServiceList.reduce((sum, s) => sum + (s ? s.price : 0), 0);
+  const selectedServiceList = Array.from(selectedServices).map(sid => services.find(s => String(s.id) === sid)).filter(Boolean);
+  const total = selectedServiceList.reduce((sum, s) => sum + s.price, 0);
 
   const newOrder = {
     id: generateId(),
@@ -323,13 +347,15 @@ async function submitOrder() {
   orders.push(newOrder);
   saveLocalData();
 
-  // Try sync to GAS
+  // Try sync to GAS immediately
   if (settings.gasUrl) {
     const result = await callGAS('addOrder', { order: newOrder });
-    if (!result.success) {
-      showToast('Order tersimpan lokal. Sinkron GAS gagal.', 'warning');
+    if (result.success) {
+      showToast('Order berhasil disimpan ke Google Sheets!', 'success');
+      // Refresh data from GAS to get the latest
+      await loadDataFromGAS();
     } else {
-      showToast('Order berhasil disimpan!', 'success');
+      showToast('Order tersimpan lokal. Sinkron GAS gagal: ' + (result.error || ''), 'warning');
     }
   } else {
     showToast('Order tersimpan secara lokal.', 'success');
@@ -368,21 +394,21 @@ function renderOrdersTable() {
   const search = document.getElementById('orderSearch')?.value.toLowerCase() || '';
   if (search) {
     filtered = filtered.filter(o =>
-      o.customerName?.toLowerCase().includes(search) ||
-      o.shoeBrand?.toLowerCase().includes(search) ||
-      o.id?.toString().includes(search)
+      (o.customerName || '').toLowerCase().includes(search) ||
+      (o.shoeBrand || '').toLowerCase().includes(search) ||
+      (o.id || '').toString().includes(search)
     );
   }
 
-  filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  filtered.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
   tbody.innerHTML = filtered.map(o => `
     <tr>
       <td>#${o.id}</td>
       <td>${formatDate(o.date)}</td>
       <td>
-        <strong>${o.customerName}</strong><br>
-        <small class="text-muted">${o.customerPhone}</small>
+        <strong>${o.customerName || '-'}</strong><br>
+        <small class="text-muted">${o.customerPhone || '-'}</small>
       </td>
       <td>${o.shoeBrand || '-'} <small class="text-muted">(${o.shoeSize || '-'})</small></td>
       <td>${o.serviceNames || '-'}</td>
@@ -419,17 +445,23 @@ function statusBadge(status) {
 }
 
 async function updateStatus(id, newStatus) {
-  const order = orders.find(o => o.id === id);
+  const order = orders.find(o => String(o.id) === String(id));
   if (!order) return;
 
   order.status = newStatus;
   saveLocalData();
 
   if (settings.gasUrl) {
-    await callGAS('updateOrder', { id, status: newStatus });
+    const result = await callGAS('updateOrder', { id, status: newStatus });
+    if (result.success) {
+      showToast(`Status diupdate ke ${newStatus}`, 'success');
+    } else {
+      showToast('Status diupdate lokal. Sinkron GAS gagal.', 'warning');
+    }
+  } else {
+    showToast(`Status diupdate ke ${newStatus} (lokal)`, 'success');
   }
 
-  showToast(`Status diupdate ke ${newStatus}`, 'success');
   updateDashboard();
 }
 
@@ -445,30 +477,36 @@ function filterOrders() {
 }
 
 function viewOrder(id) {
-  const order = orders.find(o => o.id === id);
+  const order = orders.find(o => String(o.id) === String(id));
   if (!order) return;
 
   alert(`Detail Order #${order.id}
 
-Pelanggan: ${order.customerName}
-WhatsApp: ${order.customerPhone}
+Pelanggan: ${order.customerName || '-'}
+WhatsApp: ${order.customerPhone || '-'}
 Sepatu: ${order.shoeBrand || '-'} (${order.shoeSize || '-'})
 Warna: ${order.shoeColor || '-'}
 Kondisi: ${order.shoeCondition || '-'}
-Layanan: ${order.serviceNames}
+Layanan: ${order.serviceNames || '-'}
 Total: ${formatRupiah(order.total)}
-Status: ${order.status}
+Status: ${order.status || '-'}
 Catatan: ${order.notes || '-'}`);
 }
 
 async function deleteOrder(id) {
   if (!confirm('Yakin hapus order ini?')) return;
 
-  orders = orders.filter(o => o.id !== id);
+  orders = orders.filter(o => String(o.id) !== String(id));
   saveLocalData();
 
   if (settings.gasUrl) {
-    await callGAS('deleteOrder', { id });
+    const result = await callGAS('deleteOrder', { id });
+    if (!result.success) {
+      showToast('Order dihapus lokal. Sinkron GAS gagal.', 'warning');
+      renderOrdersTable();
+      updateDashboard();
+      return;
+    }
   }
 
   showToast('Order dihapus', 'success');
@@ -486,15 +524,15 @@ function renderServicesList() {
   container.innerHTML = services.map(s => `
     <div class="service-row">
       <div class="service-info">
-        <h4>${s.name}</h4>
+        <h4>${s.name || '-'}</h4>
         <p>${s.description || '-'}</p>
       </div>
       <div class="service-price-tag">${formatRupiah(s.price)}</div>
       <div class="service-actions">
-        <button class="action-btn" onclick="editService(${s.id})" title="Edit">
+        <button class="action-btn" onclick="editService('${s.id}')" title="Edit">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         </button>
-        <button class="action-btn delete" onclick="deleteService(${s.id})" title="Hapus">
+        <button class="action-btn delete" onclick="deleteService('${s.id}')" title="Hapus">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
         </button>
       </div>
@@ -518,13 +556,13 @@ function closeServiceModal() {
 }
 
 function editService(id) {
-  const svc = services.find(s => s.id === id);
+  const svc = services.find(s => String(s.id) === String(id));
   if (!svc) return;
 
   editingServiceId = id;
   document.getElementById('serviceModalTitle').textContent = 'Edit Layanan';
-  document.getElementById('serviceName').value = svc.name;
-  document.getElementById('servicePrice').value = svc.price;
+  document.getElementById('serviceName').value = svc.name || '';
+  document.getElementById('servicePrice').value = svc.price || 0;
   document.getElementById('serviceDesc').value = svc.description || '';
   document.getElementById('serviceModal').classList.add('active');
 }
@@ -540,7 +578,7 @@ async function saveService() {
   }
 
   if (editingServiceId) {
-    const svc = services.find(s => s.id === editingServiceId);
+    const svc = services.find(s => String(s.id) === String(editingServiceId));
     if (svc) {
       svc.name = name;
       svc.price = price;
@@ -564,7 +602,7 @@ async function saveService() {
 
 async function deleteService(id) {
   if (!confirm('Yakin hapus layanan ini?')) return;
-  services = services.filter(s => s.id !== id);
+  services = services.filter(s => String(s.id) !== String(id));
   saveLocalData();
 
   if (settings.gasUrl) {
@@ -595,6 +633,7 @@ function formatDate(dateStr) {
 
 function showToast(message, type = 'info') {
   const container = document.getElementById('toastContainer');
+  if (!container) return;
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
   toast.innerHTML = `
